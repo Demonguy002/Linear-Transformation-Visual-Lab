@@ -1,0 +1,345 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Linear Transformation Visual Lab</title>
+
+<style>
+:root{
+  --panel:rgba(18,26,51,0.78);
+  --glass:rgba(255,255,255,0.08);
+  --accent:#7ad7ff;
+  --accent2:#9b7aff;
+  --danger:#ff4c4c;
+}
+
+*{box-sizing:border-box}
+
+body{
+  margin:0;
+  background:radial-gradient(circle at top,#0c1440,#050814);
+  color:#e6ecff;
+  font-family:"Segoe UI",system-ui,Arial;
+}
+
+h1{
+  margin:0;
+  padding:14px;
+  text-align:center;
+  color:var(--accent);
+  letter-spacing:1px;
+}
+
+.container{
+  display:flex;
+  height:calc(100vh - 60px);
+}
+
+/* ===== CONTROL PANEL (WIDER) ===== */
+.controls{
+  width:420px;                     /* ✅ widened */
+  padding:20px;
+  background:var(--panel);
+  backdrop-filter:blur(14px);
+  border-right:1px solid rgba(255,255,255,0.1);
+  overflow-y:auto;
+}
+
+.controls h2{
+  margin-top:18px;
+  margin-bottom:10px;
+  color:var(--accent2);
+  font-size:17px;
+}
+
+/* ===== MATRIX ===== */
+.matrix-box{
+  background:var(--glass);
+  padding:18px;                    /* more space */
+  border-radius:14px;
+}
+
+.matrix{
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:14px;
+  position:relative;
+}
+
+.matrix::before,
+.matrix::after{
+  content:"";
+  position:absolute;
+  top:-8px; bottom:-8px;
+  width:8px;
+  border:2px solid var(--accent);
+}
+
+.matrix::before{left:-14px;border-right:none;}
+.matrix::after{right:-14px;border-left:none;}
+
+input{
+  padding:12px;                    /* larger input */
+  font-size:17px;
+  min-width:120px;                 /* prevents cut */
+  text-align:center;
+  background:#050814;
+  color:#fff;
+  border-radius:8px;
+  border:1px solid rgba(255,255,255,0.25);
+}
+
+input:focus{
+  outline:none;
+  border-color:var(--accent);
+  box-shadow:0 0 12px rgba(122,215,255,0.5);
+}
+
+/* ===== BUTTONS ===== */
+button{
+  width:100%;
+  padding:12px;
+  margin-top:10px;
+  font-size:14px;
+  border:none;
+  border-radius:10px;
+  cursor:pointer;
+  background:linear-gradient(135deg,var(--accent),#5bbce6);
+  transition:0.25s;
+}
+
+button:hover{
+  transform:translateY(-2px);
+  box-shadow:0 0 18px rgba(122,215,255,0.6);
+}
+
+.secondary{
+  background:linear-gradient(135deg,var(--accent2),#7a6dff);
+  color:white;
+}
+
+.danger{
+  background:linear-gradient(135deg,#ff7a7a,var(--danger));
+  color:white;
+}
+
+/* ===== LEGEND ===== */
+.legend{
+  margin-top:16px;
+  padding:12px;
+  background:var(--glass);
+  border-radius:12px;
+  font-size:14px;
+}
+
+.legend span{
+  display:flex;
+  align-items:center;
+  margin-bottom:6px;
+}
+
+.dot{
+  width:10px;
+  height:10px;
+  border-radius:50%;
+  margin-right:8px;
+}
+.blue{background:var(--accent);}
+.red{background:var(--danger);}
+.purple{background:var(--accent2);}
+
+/* ===== CANVAS ===== */
+canvas{
+  flex:1;
+  background:radial-gradient(circle at center,#070c24,#030510);
+}
+</style>
+</head>
+
+<body>
+<h1>Linear Transformation Visual Lab</h1>
+
+<div class="container">
+
+  <div class="controls">
+    <h2>Transformation Matrix</h2>
+
+    <div class="matrix-box">
+      <div class="matrix">
+        <input id="a" value="1">
+        <input id="b" value="0">
+        <input id="c" value="0">
+        <input id="d" value="1">
+      </div>
+    </div>
+
+    <button onclick="applyMatrix()">Apply</button>
+    <button class="secondary" onclick="animateTransform()">Animate</button>
+    <button onclick="randomMatrix()">Random Matrix</button>
+    <button class="danger" onclick="resetAll()">Reset</button>
+
+    <h2>Presets</h2>
+    <button onclick="setRotation()">Rotate 90°</button>
+    <button onclick="setScaling()">Scale ×2</button>
+    <button onclick="setShear()">Shear</button>
+
+    <h2>Shapes</h2>
+    <button onclick="triangle()">Triangle</button>
+    <button onclick="square()">Square</button>
+
+    <h2>3D Mode</h2>
+    <button class="secondary" onclick="toggle3D()">Toggle 3D Projection</button>
+
+    <div class="legend">
+      <span><div class="dot blue"></div>Original</span>
+      <span><div class="dot red"></div>Transformed</span>
+      <span><div class="dot purple"></div>3D Projection</span>
+    </div>
+  </div>
+
+  <canvas id="canvas"></canvas>
+</div>
+
+<script>
+const canvas=document.getElementById("canvas");
+const ctx=canvas.getContext("2d");
+
+function resize(){
+  canvas.width=window.innerWidth-420;   // ✅ matches new panel
+  canvas.height=window.innerHeight-60;
+}
+window.addEventListener("resize",resize);
+resize();
+
+let vectors=[{x:120,y:0},{x:0,y:120},{x:120,y:120}];
+let transformed=JSON.parse(JSON.stringify(vectors));
+
+let vectors3D=[
+  {x:80,y:80,z:80},{x:-80,y:80,z:80},
+  {x:-80,y:-80,z:80},{x:80,y:-80,z:80}
+];
+let show3D=false;
+
+const aInput=document.getElementById("a");
+const bInput=document.getElementById("b");
+const cInput=document.getElementById("c");
+const dInput=document.getElementById("d");
+
+function drawGrid(){
+  ctx.strokeStyle="rgba(255,255,255,0.08)";
+  for(let i=-500;i<=500;i+=50){
+    ctx.beginPath();
+    ctx.moveTo(i+canvas.width/2,0);
+    ctx.lineTo(i+canvas.width/2,canvas.height);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(0,i+canvas.height/2);
+    ctx.lineTo(canvas.width,i+canvas.height/2);
+    ctx.stroke();
+  }
+}
+
+function drawVectors(vecs,color){
+  ctx.strokeStyle=color;
+  ctx.fillStyle=color;
+  vecs.forEach(v=>{
+    ctx.beginPath();
+    ctx.moveTo(canvas.width/2,canvas.height/2);
+    ctx.lineTo(canvas.width/2+v.x,canvas.height/2-v.y);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.arc(canvas.width/2+v.x,canvas.height/2-v.y,5,0,Math.PI*2);
+    ctx.fill();
+  });
+}
+
+function project3D(v){
+  return {x:v.x-v.z*0.5,y:v.y-v.z*0.5};
+}
+
+function render(){
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+  drawGrid();
+  drawVectors(vectors,"#7ad7ff");
+  drawVectors(transformed,"#ff4c4c");
+  if(show3D){
+    drawVectors(vectors3D.map(project3D),"#9b7aff");
+  }
+}
+
+function applyMatrix(){
+  const a=+aInput.value,b=+bInput.value,c=+cInput.value,d=+dInput.value;
+  transformed=vectors.map(v=>({x:a*v.x+b*v.y,y:c*v.x+d*v.y}));
+  render();
+}
+
+function resetAll(){
+  vectors=[{x:120,y:0},{x:0,y:120},{x:120,y:120}];
+  transformed=JSON.parse(JSON.stringify(vectors));
+  aInput.value=1;bInput.value=0;cInput.value=0;dInput.value=1;
+  show3D=false;
+  render();
+}
+
+function randomMatrix(){
+  [aInput,bInput,cInput,dInput].forEach(i=>i.value=(Math.random()*2-1).toFixed(1));
+}
+
+function setRotation(){aInput.value=0;bInput.value=-1;cInput.value=1;dInput.value=0;applyMatrix();}
+function setScaling(){aInput.value=2;bInput.value=0;cInput.value=0;dInput.value=2;applyMatrix();}
+function setShear(){aInput.value=1;bInput.value=1;cInput.value=0;dInput.value=1;applyMatrix();}
+
+function triangle(){
+  vectors=[{x:0,y:120},{x:-100,y:-80},{x:100,y:-80}];
+  transformed=JSON.parse(JSON.stringify(vectors));
+  render();
+}
+
+function square(){
+  vectors=[{x:80,y:80},{x:-80,y:80},{x:-80,y:-80},{x:80,y:-80}];
+  transformed=JSON.parse(JSON.stringify(vectors));
+  render();
+}
+
+function animateTransform(){
+  let t=0;
+  const a=+aInput.value,b=+bInput.value,c=+cInput.value,d=+dInput.value;
+  function step(){
+    t+=0.03;
+    if(t>1)return;
+    transformed=vectors.map(v=>({
+      x:v.x*(1-t)+(a*v.x+b*v.y)*t,
+      y:v.y*(1-t)+(c*v.x+d*v.y)*t
+    }));
+    render();
+    requestAnimationFrame(step);
+  }
+  step();
+}
+
+let selected=null;
+canvas.addEventListener("mousedown",e=>{
+  const mx=e.offsetX-canvas.width/2;
+  const my=canvas.height/2-e.offsetY;
+  vectors.forEach(v=>{
+    if(Math.hypot(v.x-mx,v.y-my)<10)selected=v;
+  });
+});
+canvas.addEventListener("mousemove",e=>{
+  if(selected){
+    selected.x=e.offsetX-canvas.width/2;
+    selected.y=canvas.height/2-e.offsetY;
+    applyMatrix();
+  }
+});
+canvas.addEventListener("mouseup",()=>selected=null);
+
+function toggle3D(){
+  show3D=!show3D;
+  render();
+}
+
+render();
+</script>
+</body>
+</html>
